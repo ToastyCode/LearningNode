@@ -9,21 +9,41 @@ var mimeTypes = {
     '.css' : 'text/css'
 };
 
+var cache = {};
+function cacheAndDeliver(f, cb){
+    if(!cache[f]){
+        fs.readFile(f, function(err, data){
+            if(!err){
+                cache[f]= {content: data};
+            }
+            cb(err, data);
+        });
+        return;
+    }
+    console.log('loading '+f+' from cache');
+    cb(null, cache[f].content);
+}
+
 serverRequestListener = function(request,response){
     var lookup = path.basename(decodeURI(request.url)) || 'index.html'
     var f = 'content/' + lookup;
+
+    if(request.url === '/favicon.ico'){
+        console.log('Not found: ' + f);
+        response.writeHead(404);
+        response.end();
+        return;
+    }
+
     fs.exists(f, function(exists){
         if(exists){
-            response.writeHead(200,mimeTypes[path.extname(decodeURI(request.url))]);
-            fs.readFile(f,(err,data)=>{
+            cacheAndDeliver(f,(err,data)=>{
                 if(err){
                     response.writeHead(500);
-                    response.write("Server Error!");
-                    response.end();
+                    response.end('Server Error!');
                     return;
                 }
-                mimeType = mimeTypes[path.extname(lookup)];
-                response.writeHead(200,{'Content-type':mimeType});
+                response.writeHead(200,{"Content-type":mimeTypes[path.extname(lookup)]});
                 response.write(data);
                 response.end();
             });
