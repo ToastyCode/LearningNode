@@ -13,7 +13,24 @@ serverRequestListener = function(request,response){
     var lookup = path.basename(decodeURI(request.url)) || 'index.html'
     var f = 'content/' + lookup;
     fs.exists(f, function(exists){
-        console.log(exists? lookup + " is there" : lookup + " doesn't exist");
+        if(exists){
+            response.writeHead(200,mimeTypes[path.extname(decodeURI(request.url))]);
+            fs.readFile(f,(err,data)=>{
+                if(err){
+                    response.writeHead(500);
+                    response.write("Server Error!");
+                    response.end();
+                    return;
+                }
+                mimeType = mimeTypes[path.extname(lookup)];
+                response.writeHead(200,{'Content-type':mimeType});
+                response.write(data);
+                response.end();
+            });
+            return;
+        }
+        response.writeHead(404);
+        response.end();
     });
 }
 
