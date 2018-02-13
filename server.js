@@ -10,6 +10,7 @@ var mimeTypes = {
 };
 
 serverRequestListener = function(request,response){
+    console.log("Hello Worlds");
     var lookup = path.basename(decodeURI(request.url)) || 'index.html'
     var f = 'content/' + lookup;
     fs.exists(f, function(exists){
