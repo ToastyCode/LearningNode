@@ -31,7 +31,7 @@ function cacheAndDeliver(f, cb){
     });
 }
 
-serverRequestListener = function(request,response){
+function serverRequestListener (request,response){
     var lookup = path.basename(decodeURI(request.url)) || 'index.html'
     var f = 'content/' + lookup;
 
@@ -44,16 +44,37 @@ serverRequestListener = function(request,response){
 
     fs.exists(f, function(exists){
         if(exists){
-            cacheAndDeliver(f,(err,data)=>{
-                if(err){
-                    response.writeHead(500);
-                    response.end('Server Error!');
-                    return;
-                }
-                response.writeHead(200,{"Content-type":mimeTypes[path.extname(lookup)]});
-                response.write(data);
-                response.end();
+            var headers = {'Content-type': mimeTypes[path.extname(f)]};
+            if(cache[f]){
+                console.log('Loding Data From Cache');
+                response.writeHead(200,headers);
+                response.end(cache[f].content);
+                return;
+            }
+
+            console.log('Streaming Data From Disk');
+            
+
+            var s = fs.createReadStream(f);
+            s.once('open',()=>{
+                response.writeHead(200,headers)
+                s.pipe(response);
             });
+            s.once('error',(e)=>{
+                console.log(e);
+                response.writeHead(500);
+                response.end('Server Error!');
+            });
+
+            fs.stat(f,(err,stats)=>{
+                var bufferOffset = 0;
+                cache[f] = {content: new Buffer(stats.size)};
+                s.on('data',(chunk)=>{
+                    chunk.copy(cache[f].content,bufferOffset),
+                    bufferOffset += chunk.length;
+                });
+            });
+
             return;
         }
         response.writeHead(404);
@@ -62,5 +83,6 @@ serverRequestListener = function(request,response){
 }
 
 var server = http.createServer(serverRequestListener);
+
 
 server.listen(8080);
