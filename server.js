@@ -9,7 +9,24 @@ var mimeTypes = {
     '.css' : 'text/css'
 };
 
-var cache = {};
+var cache = {
+    store: {},
+    maxSize: 26214400, //(bytes) 25mb
+    maxAge: 5400 * 1000, //(ms) 1 and a half hours
+    cleanAfter: 7200 * 1000, //(ms) two hours
+    cleanedAt: 0, //to be set dynamically
+    clean: function(now){
+        if(now - this.cleanAfter > this.cleanedAt){
+            this.cleanedAt = now;
+            var that = this;
+            Object.keys(this.store).forEach((file)=>{
+                if(now > that.store[file].timestamp + that.maxAge){
+                    delete that.store[file];
+                }
+            });
+        }
+    }
+};
 function cacheAndDeliver(f, cb){
     fs.stat(f,(err,stats)=>{
         if(err){return console.log("Oh no! Error",err);}
@@ -67,12 +84,14 @@ function serverRequestListener (request,response){
             });
 
             fs.stat(f,(err,stats)=>{
-                var bufferOffset = 0;
-                cache[f] = {content: new Buffer(stats.size)};
-                s.on('data',(chunk)=>{
-                    chunk.copy(cache[f].content,bufferOffset),
-                    bufferOffset += chunk.length;
-                });
+                if(stats.size<cache.maxSize){
+                    var bufferOffset = 0;
+                    cache[f] = {content: new Buffer(stats.size)};
+                    s.on('data',(chunk)=>{
+                        chunk.copy(cache[f].content,bufferOffset),
+                        bufferOffset += chunk.length;
+                    });
+                }
             });
 
             return;
@@ -80,9 +99,10 @@ function serverRequestListener (request,response){
         response.writeHead(404);
         response.end();
     });
+    cache.clean(Date.now());
 }
 
 var server = http.createServer(serverRequestListener);
 
 
-server.listen(8080);
+server.listen(25000);
